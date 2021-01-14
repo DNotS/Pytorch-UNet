@@ -108,8 +108,9 @@ if __name__ == "__main__":
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logging.info(f'Using device {device}')
+    net = torch.hub.load('milesial/Pytorch-UNet', 'unet_carvana')
     net.to(device=device)
-    net.load_state_dict(torch.load(args.model, map_location=device))
+    # net.load_state_dict(torch.load(args.model, map_location=device))
 
     logging.info("Model loaded !")
 

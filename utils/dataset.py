@@ -6,6 +6,28 @@ import torch
 from torch.utils.data import Dataset
 import logging
 from PIL import Image
+import random
+from torchvision import transforms
+
+transform_bg = transforms.Compose([
+    transforms.RandomHorizontalFlip(p=0.5),
+    transforms.RandomVerticalFlip(p=0.5),
+    transforms.RandomApply(
+        transforms.ColorJitter(brightness=0.05, contrast=0.05, saturation=0.05, hue=0.05), p=0.2
+    ),
+]
+)
+
+transform_fg = transforms.Compose([
+    transforms.RandomHorizontalFlip(p=0.5),
+    transforms.RandomVerticalFlip(p=0.5),
+    # transforms.RandomApply(
+    #     transforms.ColorJitter(brightness=0.05, contrast=0.05, saturation=0.05, hue=0.05), p=0.8),
+    transforms.RandomApply(
+        transforms.RandomAffine(degrees=0, translate=None, scale=None, shear=10, resample=0, fillcolor=0), p=0.8),
+    transforms.RandomPerspective(p=0.2, distortion_scale=0.2)
+])
+
 
 
 class BasicDataset(Dataset):
@@ -56,6 +78,106 @@ class BasicDataset(Dataset):
 
         assert img.size == mask.size, \
             f'Image and mask {idx} should be the same size, but are {img.size} and {mask.size}'
+
+        img = self.preprocess(img, self.scale)
+        mask = self.preprocess(mask, self.scale)
+
+        return {
+            'image': torch.from_numpy(img).type(torch.FloatTensor),
+            'mask': torch.from_numpy(mask).type(torch.FloatTensor)
+        }
+
+
+class MergingDataset(Dataset):
+    def __init__(self, fg_dir, bg_dir, scale=1, mask_suffix=''):
+        self.fg_dir = fg_dir
+        self.bg_dir = bg_dir
+        self.scale = scale
+        self.mask_suffix = mask_suffix
+        assert 0 < scale <= 1, 'Scale must be between 0 and 1'
+        logging.info(f'Creating dataset with {len(self.ids)} examples')
+
+    def __len__(self):
+        length = len(glob(self.fg_dir+"*")) * 10
+        return length
+
+    @classmethod
+    def preprocess(cls, pil_img, scale):
+        w, h = pil_img.size
+        newW, newH = int(scale * w), int(scale * h)
+        assert newW > 0 and newH > 0, 'Scale is too small'
+        pil_img = pil_img.resize((newW, newH))
+
+        img_nd = np.array(pil_img)
+
+        if len(img_nd.shape) == 2:
+            img_nd = np.expand_dims(img_nd, axis=2)
+
+        # HWC to CHW
+        img_trans = img_nd.transpose((2, 0, 1))
+        if img_trans.max() > 1:
+            img_trans = img_trans / 255
+
+        return img_trans
+
+    def create_img_mask(self, bg, fg):
+
+        bg = transform_bg(bg)
+        fg = transform_fg(fg)
+
+        if bg.size[0] < fg.size[0] or bg.size[1] < fg.size[1]:
+            case = fg.size[0] / fg.size[1] > bg.size[0] / bg.size[1]
+            if case:  # сжимать fg 0 до bg 0
+                base_width = int(bg.size[0] * max((0.9, random.random())))
+                wpercent = (base_width / float(fg.size[0]))
+                hsize = int((float(fg.size[1]) * float(wpercent)))
+                h_range = bg.size[1] - hsize
+                w_range = bg.size[0] - base_width
+                fg = fg.resize((base_width, hsize), Image.ANTIALIAS)
+                wh = (random.randrange(w_range), random.randrange(h_range))
+            if not case:
+                base_hight = int(bg.size[1] * max((0.9, random.random())))
+                wpercent = (base_hight / float(fg.size[1]))
+                wsize = int((float(fg.size[0]) * float(wpercent)))
+                w_range = bg.size[0] - wsize
+                h_range = bg.size[1] - base_hight
+                fg = fg.resize((wsize, base_hight), Image.ANTIALIAS)
+                wh = (random.randrange(w_range), random.randrange(h_range))
+
+
+        img = bg
+        img.paste(fg, wh, fg)
+
+        fg_mask = Image.new('RGB', fg.size)
+        data = fg.getdata()
+
+        new_data = []
+        for item in data:
+            if item[0] > 0 or item[1] > 0 or item[2] > 0:
+                new_data.append((255, 255, 255, 0))
+            else:
+                new_data.append(item)
+
+        fg_mask.putdata(new_data)
+
+        mask = Image.new('RGB', bg.size)
+        mask.paste(fg_mask, wh)
+
+        return img, mask
+
+    def __getitem__(self, i):
+
+        fg_file = glob(self.fg_dir + '*')
+        bg_file = glob(self.bg_dir + '*')
+
+        fg = Image.open(fg_file[i // 10])
+        bg = Image.open(bg_file[i // 10])
+
+        img, mask = self.reate_img_mask(bg, fg)
+        # My transforms
+
+        assert img.size == mask.size, \
+            f'Image and mask {i} should be the same size, but are {img.size} and {mask.size}'
 
         img = self.preprocess(img, self.scale)
         mask = self.preprocess(mask, self.scale)

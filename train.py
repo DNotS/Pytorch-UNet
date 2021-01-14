@@ -13,11 +13,11 @@ from eval import eval_net
 from unet import UNet
 
 from torch.utils.tensorboard import SummaryWriter
-from utils.dataset import BasicDataset
+from utils.dataset import BasicDataset, MergingDataset
 from torch.utils.data import DataLoader, random_split
 
-dir_img = 'data/imgs/'
-dir_mask = 'data/masks/'
+fg_dir = 'data/fg/'
+bg_dir = 'data/bg/'
 dir_checkpoint = 'checkpoints/'
 
 
@@ -30,7 +30,7 @@ def train_net(net,
               save_cp=True,
               img_scale=0.5):
 
-    dataset = BasicDataset(dir_img, dir_mask, img_scale)
+    dataset = MergingDataset(fg_dir, bg_dir, img_scale)
     n_val = int(len(dataset) * val_percent)
     n_train = len(dataset) - n_val
     train, val = random_split(dataset, [n_train, n_val])
