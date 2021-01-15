@@ -13,7 +13,7 @@ transform_bg = transforms.Compose([
     transforms.RandomHorizontalFlip(p=0.5),
     transforms.RandomVerticalFlip(p=0.5),
     transforms.RandomApply(
-        transforms.ColorJitter(brightness=0.05, contrast=0.05, saturation=0.05, hue=0.05), p=0.2
+        [transforms.ColorJitter(brightness=0.05, contrast=0.05, saturation=0.05, hue=0.05)], p=0.2
     ),
 ]
 )
@@ -24,7 +24,7 @@ transform_fg = transforms.Compose([
     # transforms.RandomApply(
     #     transforms.ColorJitter(brightness=0.05, contrast=0.05, saturation=0.05, hue=0.05), p=0.8),
     transforms.RandomApply(
-        transforms.RandomAffine(degrees=0, translate=None, scale=None, shear=10, resample=0, fillcolor=0), p=0.8),
+        [transforms.RandomAffine(degrees=0, translate=None, scale=None, shear=10, resample=0, fillcolor=0)], p=0.8),
     transforms.RandomPerspective(p=0.2, distortion_scale=0.2)
 ])
 
@@ -95,7 +95,7 @@ class MergingDataset(Dataset):
         self.scale = scale
         self.mask_suffix = mask_suffix
         assert 0 < scale <= 1, 'Scale must be between 0 and 1'
-        logging.info(f'Creating dataset with {len(self.ids)} examples')
+        logging.info(f'Creating dataset with {len(glob(self.fg_dir+"*")) * 10} examples')
 
     def __len__(self):
         length = len(glob(self.fg_dir+"*")) * 10
@@ -143,12 +143,14 @@ class MergingDataset(Dataset):
                 h_range = bg.size[1] - base_hight
                 fg = fg.resize((wsize, base_hight), Image.ANTIALIAS)
                 wh = (random.randrange(w_range), random.randrange(h_range))
-
+        else:
+            wh = (random.randrange(bg.size[0] - fg.size[0]), random.randrange(bg.size[1] - fg.size[1]))
 
         img = bg
+        fg = fg.convert('RGBA')
         img.paste(fg, wh, fg)
 
-        fg_mask = Image.new('RGB', fg.size)
+        fg_mask = Image.new('RGBA', fg.size)
         data = fg.getdata()
 
         new_data = []
@@ -160,9 +162,10 @@ class MergingDataset(Dataset):
 
         fg_mask.putdata(new_data)
 
-        mask = Image.new('RGB', bg.size)
-        mask.paste(fg_mask, wh)
-
+        alpha = fg_mask.convert('RGBA').split()[-1]
+        mask = Image.new("RGBA", bg.size, (0, 0, 0) + (255,))
+        mask.paste(fg_mask, wh, mask=alpha)
+        mask = mask.convert('1')
         return img, mask
 
     def __getitem__(self, i):
@@ -170,10 +173,10 @@ class MergingDataset(Dataset):
         fg_file = glob(self.fg_dir + '*')
         bg_file = glob(self.bg_dir + '*')
 
-        fg = Image.open(fg_file[i // 10])
-        bg = Image.open(bg_file[i // 10])
+        fg = Image.open(fg_file[i // 10], )
+        bg = Image.open(bg_file[int(i * (len(bg_file) / len(fg_file))) // 10])
 
-        img, mask = self.reate_img_mask(bg, fg)
+        img, mask = self.create_img_mask(bg, fg)
         # My transforms
 
         assert img.size == mask.size, \

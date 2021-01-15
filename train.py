@@ -16,10 +16,9 @@ from torch.utils.tensorboard import SummaryWriter
 from utils.dataset import BasicDataset, MergingDataset
 from torch.utils.data import DataLoader, random_split
 
-fg_dir = 'data/fg/'
-bg_dir = 'data/bg/'
+fg_dir = '/home/gnikiforov/data/segmentation/fg/'
+bg_dir = '/home/gnikiforov/data/segmentation/bg/'
 dir_checkpoint = 'checkpoints/'
-
 
 def train_net(net,
               device,
