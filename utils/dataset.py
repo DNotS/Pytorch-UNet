@@ -125,6 +125,7 @@ class MergingDataset(Dataset):
         bg = transform_bg(bg)
         fg = transform_fg(fg)
 
+        # fg.show()
         if bg.size[0] < fg.size[0] or bg.size[1] < fg.size[1]:
             case = fg.size[0] / fg.size[1] > bg.size[0] / bg.size[1]
             if case:  # сжимать fg 0 до bg 0
@@ -150,22 +151,22 @@ class MergingDataset(Dataset):
         fg = fg.convert('RGBA')
         img.paste(fg, wh, fg)
 
-        fg_mask = Image.new('RGBA', fg.size)
+        fg_mask = Image.new('1', fg.size, 0)
         data = fg.getdata()
 
         new_data = []
+
         for item in data:
-            if item[0] > 0 or item[1] > 0 or item[2] > 0:
-                new_data.append((255, 255, 255, 0))
+            if item[3] > 0:
+                new_data.append(1)
             else:
-                new_data.append(item)
+                new_data.append(0)
 
         fg_mask.putdata(new_data)
 
-        alpha = fg_mask.convert('RGBA').split()[-1]
-        mask = Image.new("RGBA", bg.size, (0, 0, 0) + (255,))
-        mask.paste(fg_mask, wh, mask=alpha)
-        mask = mask.convert('1')
+        mask = Image.new("1", bg.size, 0)
+        mask.paste(fg_mask, wh)
+
         return img, mask
 
     def __getitem__(self, i):
