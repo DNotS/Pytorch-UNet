@@ -95,7 +95,7 @@ class MergingDataset(Dataset):
         self.scale = scale
         self.mask_suffix = mask_suffix
         assert 0 < scale <= 1, 'Scale must be between 0 and 1'
-        logging.info(f'Creating dataset with {len(glob(self.fg_dir+"*")) * 10} examples')
+        logging.info(f'Creating dataset with {len(glob(self.fg_dir+"*")) * 10} examples ')
 
     def __len__(self):
         length = len(glob(self.fg_dir+"*")) * 10

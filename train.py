@@ -39,7 +39,7 @@ def train_net(net,
     writer = SummaryWriter(comment=f'LR_{lr}_BS_{batch_size}_SCALE_{img_scale}')
     global_step = 0
 
-    logging.info(f'''Starting training:
+    logging.info(f'''Starting training: 
         Epochs:          {epochs}
         Batch size:      {batch_size}
         Learning rate:   {lr}
